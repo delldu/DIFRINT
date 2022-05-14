@@ -99,6 +99,7 @@ class DIFNet2(nn.Module):
                 super(Backward, self).__init__()
 
             def forward(self, tensorInput, tensorFlow, scale=1.0):
+                # xxxx8888
                 # hasattr(self, 'tensorPartial') -- False
                 if (
                     hasattr(self, "tensorPartial") == False
@@ -148,9 +149,11 @@ class DIFNet2(nn.Module):
                     padding_mode="zeros",
                 )
 
+                # tensorOutput.size() -- [1, 4, 720, 1280]
                 tensorMask = tensorOutput[:, -1:, :, :]
+                # tensorMask.size() -- [1, 1, 720, 1280]
                 tensorMask[tensorMask > 0.999] = 1.0
-                tensorMask[tensorMask < 1.0] = 0.0
+                tensorMask[tensorMask <= 0.999] = 0.0
 
                 return tensorOutput[:, :-1, :, :] * tensorMask
 
@@ -175,25 +178,24 @@ class DIFNet2(nn.Module):
             temp_fr_1 = F.interpolate(input=fr_1, size=(temp_h, temp_w), mode="nearest")
             temp_fr_2 = F.interpolate(input=fr_2, size=(temp_h, temp_w), mode="nearest")
 
-            flo = 20.0 * F.interpolate(
+            flow = 20.0 * F.interpolate(
                 input=self.pwc(temp_fr_1, temp_fr_2),
                 size=(fr_1.size(2), fr_1.size(3)),
                 mode="bilinear",
                 align_corners=False,
             )
-            return self.warpLayer(fr_2, flo, scale), flo
+            return self.warpLayer(fr_2, flow, scale), flow
 
-    def forward(self, frame_prev, frame_curr, frame_next, scale):
-        # scale -- 0.5
-        w1, flow1 = self.warpFrame(frame_next, frame_prev, scale=scale)
-        w2, flow2 = self.warpFrame(frame_prev, frame_next, scale=scale)
+    def forward(self, frame_prev, frame_curr, frame_next):
+        w1, flow1 = self.warpFrame(frame_next, frame_prev, scale=0.5)
+        w2, flow2 = self.warpFrame(frame_prev, frame_next, scale=0.5)
 
         I_int = self.UNet2(w1, w2, flow1, flow2, frame_prev, frame_next)
         f_int, flo_int = self.warpFrame(I_int, frame_curr)
 
         fhat = self.ResNet2(I_int, f_int, flo_int, frame_curr)
-        return fhat, I_int
-
+        # return fhat, I_int
+        return fhat
 
 class ResNet2(nn.Module):
     def __init__(self):

@@ -82,19 +82,13 @@ for n in range(opt.n_iter):
         next_frame = load_tensor(next_filename)
 
         with torch.no_grad():
-            fhat, I_int = model(prev_frame, curr_frame, next_frame, 0.5)  # Notice 0.5
+            fhat = model(prev_frame, curr_frame, next_frame)
+
+        # prev_frame, curr_frame, next_frame -- [1, 3, 720, 1280]
+        # fhat -- [1,3, 720, 1280]
 
         # Save image
         output_filename = destion + filename_list[i]
         # print("Saving ", prev_filename, curr_filename, next_filename, "==>", output_filename, "...")
         img = Image.fromarray(np.uint8(fhat.cpu().squeeze().permute(1, 2, 0) * 255))
         img.save(output_filename)
-
-
-### Make video
-# print('\nMaking video...')
-# frame2vid(src=opt.out_file, vidDir=opt.out_file[:-1] + '.avi')
-
-### Assess with metrics
-# print('\nComputing metrics...')
-# metrics(in_src=opt.in_file, out_src=opt.out_file)

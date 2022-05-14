@@ -81,6 +81,7 @@ class Extractor(nn.Module):
 
 
 class Backward(nn.Module):
+    ''' Backwarp'''
     def __init__(self):
         super(Backward, self).__init__()
 
@@ -151,18 +152,19 @@ class Decoder(nn.Module):
             intLevel + 0
         ]
 
-        if intLevel < 6:
+        if intLevel < 6: # xxxx8888
             self.moduleUpflow = nn.ConvTranspose2d(in_channels=2, out_channels=2, kernel_size=4, stride=2, padding=1)
-        if intLevel < 6:
+        if intLevel < 6: # xxxx8888
             self.moduleUpfeat = nn.ConvTranspose2d(
                 in_channels=intPrevious + 128 + 128 + 96 + 64 + 32, out_channels=2, kernel_size=4, stride=2, padding=1
             )
 
-        if intLevel < 6:
+        if intLevel < 6: # xxxx8888
             self.dblBackward = [None, None, None, 5.0, 2.5, 1.25, 0.625, None][intLevel + 1]
-        if intLevel < 6:
+        if intLevel < 6: # xxxx8888
             self.moduleBackward = Backward()
 
+        # xxxx8888
         self.moduleCorrelation = correlation.ModuleCorrelation()
         self.moduleCorreleaky = nn.LeakyReLU(inplace=False, negative_slope=0.1)
 
@@ -203,6 +205,7 @@ class Decoder(nn.Module):
         tensorFlow = None
         tensorFeat = None
 
+        # xxxx8888
         if objectPrevious is None:
             tensorFlow = None
             tensorFeat = None
