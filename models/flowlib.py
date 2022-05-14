@@ -37,19 +37,19 @@ def show_flow(filename):
     plt.show()
 
 
-def visualize_flow(flow, mode='Y'):
+def visualize_flow(flow, mode="Y"):
     """
     this function visualize the input flow
     :param flow: input flow in array
     :param mode: choose which color mode to visualize the flow (Y: Ccbcr, RGB: RGB color)
     :return: None
     """
-    if mode == 'Y':
+    if mode == "Y":
         # Ccbcr color wheel
         img = flow_to_image(flow)
         plt.imshow(img)
         plt.show()
-    elif mode == 'RGB':
+    elif mode == "RGB":
         (h, w) = flow.shape[0:2]
         du = flow[:, :, 0]
         dv = flow[:, :, 1]
@@ -86,17 +86,17 @@ def read_flow(filename):
     :param filename: name of the flow file
     :return: optical flow data in matrix
     """
-    f = open(filename, 'rb')
+    f = open(filename, "rb")
     magic = np.fromfile(f, np.float32, count=1)
     data2d = None
 
     if 202021.25 != magic:
-        print('Magic number incorrect. Invalid .flo file')
+        print("Magic number incorrect. Invalid .flo file")
     else:
         w = np.fromfile(f, np.int32, count=1)
         h = np.fromfile(f, np.int32, count=1)
         print("Reading %d x %d flo file" % (h, w))
-        data2d = np.fromfile(f, np.float32, count=2*w[0]*h[0])
+        data2d = np.fromfile(f, np.float32, count=2 * w[0] * h[0])
         # reshape data into 3D array (columns, rows, channels)
         data2d = np.resize(data2d, (h[0], w[0], 2))
     f.close()
@@ -112,14 +112,14 @@ def read_flow_png(flow_file):
     flow_object = png.Reader(filename=flow_file)
     flow_direct = flow_object.asDirect()
     flow_data = list(flow_direct[2])
-    (w, h) = flow_direct[3]['size']
+    (w, h) = flow_direct[3]["size"]
     flow = np.zeros((h, w, 3), dtype=np.float64)
     for i in range(len(flow_data)):
         flow[i, :, 0] = flow_data[i][0::3]
         flow[i, :, 1] = flow_data[i][1::3]
         flow[i, :, 2] = flow_data[i][2::3]
 
-    invalid_idx = (flow[:, :, 2] == 0)
+    invalid_idx = flow[:, :, 2] == 0
     flow[:, :, 0:2] = (flow[:, :, 0:2] - 2 ** 15) / 64.0
     flow[invalid_idx, 0] = 0
     flow[invalid_idx, 1] = 0
@@ -133,7 +133,7 @@ def write_flow(flow, filename):
     :param filename: optical flow file path to be saved
     :return: None
     """
-    f = open(filename, 'wb')
+    f = open(filename, "wb")
     magic = np.array([202021.25], dtype=np.float32)
     (height, width) = flow.shape[0:2]
     w = np.array([width], dtype=np.int32)
@@ -151,8 +151,8 @@ def segment_flow(flow):
     u = flow[:, :, 0]
     v = flow[:, :, 1]
 
-    idx = ((abs(u) > LARGEFLOW) | (abs(v) > LARGEFLOW))
-    idx2 = (abs(u) == SMALLFLOW)
+    idx = (abs(u) > LARGEFLOW) | (abs(v) > LARGEFLOW)
+    idx2 = abs(u) == SMALLFLOW
     class0 = (v == 0) & (u == 0)
     u[idx2] = 0.00001
     tan_value = v / u
@@ -192,12 +192,12 @@ def flow_error(tu, tv, u, v):
     :return: End point error of the estimated flow
     """
     smallflow = 0.0
-    '''
+    """
     stu = tu[bord+1:end-bord,bord+1:end-bord]
     stv = tv[bord+1:end-bord,bord+1:end-bord]
     su = u[bord+1:end-bord,bord+1:end-bord]
     sv = v[bord+1:end-bord,bord+1:end-bord]
-    '''
+    """
     stu = tu[:]
     stv = tv[:]
     su = u[:]
@@ -222,14 +222,14 @@ def flow_error(tu, tv, u, v):
     tun = index_stu * tn
     tvn = index_stv * tn
 
-    '''
+    """
     angle = un * tun + vn * tvn + (an * tn)
     index = [angle == 1.0]
     angle[index] = 0.999
     ang = np.arccos(angle)
     mang = np.mean(ang)
     mang = mang * 180 / np.pi
-    '''
+    """
 
     epe = np.sqrt((stu - su) ** 2 + (stv - sv) ** 2)
     epe = epe[ind2]
@@ -246,10 +246,10 @@ def flow_to_image(flow):
     u = flow[:, :, 0]
     v = flow[:, :, 1]
 
-    maxu = -999.
-    maxv = -999.
-    minu = 999.
-    minv = 999.
+    maxu = -999.0
+    maxv = -999.0
+    minu = 999.0
+    minv = 999.0
 
     idxUnknow = (abs(u) > UNKNOWN_FLOW_THRESH) | (abs(v) > UNKNOWN_FLOW_THRESH)
     u[idxUnknow] = 0
@@ -264,10 +264,10 @@ def flow_to_image(flow):
     rad = np.sqrt(u ** 2 + v ** 2)
     maxrad = max(-1, np.max(rad))
 
-    print("max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu,maxu, minv, maxv))
+    print("max flow: %.4f\nflow range:\nu = %.3f .. %.3f\nv = %.3f .. %.3f" % (maxrad, minu, maxu, minv, maxv))
 
-    u = u/(maxrad + np.finfo(float).eps)
-    v = v/(maxrad + np.finfo(float).eps)
+    u = u / (maxrad + np.finfo(float).eps)
+    v = v / (maxrad + np.finfo(float).eps)
 
     img = compute_color(u, v)
 
@@ -285,8 +285,8 @@ def evaluate_flow_file(gt, pred):
     :return: end point error, float32
     """
     # Read flow files and calculate the errors
-    gt_flow = read_flow(gt)        # ground truth flow
-    eva_flow = read_flow(pred)     # predicted flow
+    gt_flow = read_flow(gt)  # ground truth flow
+    eva_flow = read_flow(pred)  # predicted flow
     # Calculate errors
     average_pe = flow_error(gt_flow[:, :, 0], gt_flow[:, :, 1], eva_flow[:, :, 0], eva_flow[:, :, 1])
     return average_pe
@@ -317,7 +317,7 @@ def read_disp_png(file_name):
     image_object = png.Reader(filename=file_name)
     image_direct = image_object.asDirect()
     image_data = list(image_direct[2])
-    (w, h) = image_direct[3]['size']
+    (w, h) = image_direct[3]["size"]
     channel = len(image_data[0]) / w
     flow = np.zeros((h, w, channel), dtype=np.uint16)
     for i in range(len(image_data)):
@@ -333,7 +333,7 @@ def disp_to_flowfile(disp, filename):
     :param filename: the flow file name to save
     :return: None
     """
-    f = open(filename, 'wb')
+    f = open(filename, "wb")
     magic = np.array([202021.25], dtype=np.float32)
     (height, width) = disp.shape[0:2]
     w = np.array([width], dtype=np.int32)
@@ -373,6 +373,7 @@ def warp_image(im, flow):
     :return: warped image
     """
     from scipy import interpolate
+
     image_height = im.shape[0]
     image_width = im.shape[1]
     flow_height = flow.shape[0]
@@ -380,21 +381,21 @@ def warp_image(im, flow):
     n = image_height * image_width
     (iy, ix) = np.mgrid[0:image_height, 0:image_width]
     (fy, fx) = np.mgrid[0:flow_height, 0:flow_width]
-    fx += flow[:,:,0]
-    fy += flow[:,:,1]
-    mask = np.logical_or(fx <0 , fx > flow_width)
+    fx += flow[:, :, 0]
+    fy += flow[:, :, 1]
+    mask = np.logical_or(fx < 0, fx > flow_width)
     mask = np.logical_or(mask, fy < 0)
     mask = np.logical_or(mask, fy > flow_height)
     fx = np.minimum(np.maximum(fx, 0), flow_width)
     fy = np.minimum(np.maximum(fy, 0), flow_height)
-    points = np.concatenate((ix.reshape(n,1), iy.reshape(n,1)), axis=1)
-    xi = np.concatenate((fx.reshape(n, 1), fy.reshape(n,1)), axis=1)
+    points = np.concatenate((ix.reshape(n, 1), iy.reshape(n, 1)), axis=1)
+    xi = np.concatenate((fx.reshape(n, 1), fy.reshape(n, 1)), axis=1)
     warp = np.zeros((image_height, image_width, im.shape[2]))
     for i in range(im.shape[2]):
         channel = im[:, :, i]
-        plt.imshow(channel, cmap='gray')
+        plt.imshow(channel, cmap="gray")
         values = channel.reshape(n, 1)
-        new_channel = interpolate.griddata(points, values, xi, method='cubic')
+        new_channel = interpolate.griddata(points, values, xi, method="cubic")
         new_channel = np.reshape(new_channel, [flow_height, flow_width])
         new_channel[mask] = 1
         warp[:, :, i] = new_channel.astype(np.uint8)
@@ -407,6 +408,7 @@ def warp_image(im, flow):
 Others
 ==============
 """
+
 
 def scale_image(image, new_range):
     """
@@ -439,30 +441,30 @@ def compute_color(u, v):
     colorwheel = make_color_wheel()
     ncols = np.size(colorwheel, 0)
 
-    rad = np.sqrt(u**2+v**2)
+    rad = np.sqrt(u ** 2 + v ** 2)
 
     a = np.arctan2(-v, -u) / np.pi
 
-    fk = (a+1) / 2 * (ncols - 1) + 1
+    fk = (a + 1) / 2 * (ncols - 1) + 1
 
     k0 = np.floor(fk).astype(int)
 
     k1 = k0 + 1
-    k1[k1 == ncols+1] = 1
+    k1[k1 == ncols + 1] = 1
     f = fk - k0
 
-    for i in range(0, np.size(colorwheel,1)):
+    for i in range(0, np.size(colorwheel, 1)):
         tmp = colorwheel[:, i]
-        col0 = tmp[k0-1] / 255
-        col1 = tmp[k1-1] / 255
-        col = (1-f) * col0 + f * col1
+        col0 = tmp[k0 - 1] / 255
+        col1 = tmp[k1 - 1] / 255
+        col = (1 - f) * col0 + f * col1
 
         idx = rad <= 1
-        col[idx] = 1-rad[idx]*(1-col[idx])
+        col[idx] = 1 - rad[idx] * (1 - col[idx])
         notidx = np.logical_not(idx)
 
         col[notidx] *= 0.75
-        img[:, :, i] = np.uint8(np.floor(255 * col*(1-nanIdx)))
+        img[:, :, i] = np.uint8(np.floor(255 * col * (1 - nanIdx)))
 
     return img
 
@@ -487,31 +489,31 @@ def make_color_wheel():
 
     # RY
     colorwheel[0:RY, 0] = 255
-    colorwheel[0:RY, 1] = np.transpose(np.floor(255*np.arange(0, RY) / RY))
+    colorwheel[0:RY, 1] = np.transpose(np.floor(255 * np.arange(0, RY) / RY))
     col += RY
 
     # YG
-    colorwheel[col:col+YG, 0] = 255 - np.transpose(np.floor(255*np.arange(0, YG) / YG))
-    colorwheel[col:col+YG, 1] = 255
+    colorwheel[col : col + YG, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, YG) / YG))
+    colorwheel[col : col + YG, 1] = 255
     col += YG
 
     # GC
-    colorwheel[col:col+GC, 1] = 255
-    colorwheel[col:col+GC, 2] = np.transpose(np.floor(255*np.arange(0, GC) / GC))
+    colorwheel[col : col + GC, 1] = 255
+    colorwheel[col : col + GC, 2] = np.transpose(np.floor(255 * np.arange(0, GC) / GC))
     col += GC
 
     # CB
-    colorwheel[col:col+CB, 1] = 255 - np.transpose(np.floor(255*np.arange(0, CB) / CB))
-    colorwheel[col:col+CB, 2] = 255
+    colorwheel[col : col + CB, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, CB) / CB))
+    colorwheel[col : col + CB, 2] = 255
     col += CB
 
     # BM
-    colorwheel[col:col+BM, 2] = 255
-    colorwheel[col:col+BM, 0] = np.transpose(np.floor(255*np.arange(0, BM) / BM))
-    col += + BM
+    colorwheel[col : col + BM, 2] = 255
+    colorwheel[col : col + BM, 0] = np.transpose(np.floor(255 * np.arange(0, BM) / BM))
+    col += +BM
 
     # MR
-    colorwheel[col:col+MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
-    colorwheel[col:col+MR, 0] = 255
+    colorwheel[col : col + MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
+    colorwheel[col : col + MR, 0] = 255
 
     return colorwheel

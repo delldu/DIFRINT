@@ -2,7 +2,7 @@ import cupy
 import torch
 import re
 
-kernel_Correlation_rearrange = '''
+kernel_Correlation_rearrange = """
 	extern "C" __global__ void kernel_Correlation_rearrange(
 		const int n,
 		const float* input,
@@ -27,9 +27,9 @@ kernel_Correlation_rearrange = '''
 
 	  output[(((intSample * SIZE_1(output) * SIZE_2(output)) + intRearrange) * SIZE_1(input)) + intChannel] = dblValue;
 	}
-'''
+"""
 
-kernel_Correlation_updateOutput = '''
+kernel_Correlation_updateOutput = """
 	extern "C" __global__ void kernel_Correlation_updateOutput(
 	  const int n,
 	  const float* rbot0,
@@ -97,147 +97,142 @@ kernel_Correlation_updateOutput = '''
 	    }
 	  } 
 	}
-'''
+"""
+
 
 def cupy_kernel(strFunction, objectVariables):
-	strKernel = globals()[strFunction]
+    strKernel = globals()[strFunction]
 
-	while True:
-		objectMatch = re.search('(SIZE_)([0-4])(\()([^\)]*)(\))', strKernel)
+    while True:
+        objectMatch = re.search("(SIZE_)([0-4])(\()([^\)]*)(\))", strKernel)
 
-		if objectMatch is None:
-			break
-		# end
+        if objectMatch is None:
+            break
 
-		intArg = int(objectMatch.group(2))
+        intArg = int(objectMatch.group(2))
 
-		strTensor = objectMatch.group(4)
-		intSizes = objectVariables[strTensor].size()
+        strTensor = objectMatch.group(4)
+        intSizes = objectVariables[strTensor].size()
 
-		strKernel = strKernel.replace(objectMatch.group(), str(intSizes[intArg]))
-	# end
+        strKernel = strKernel.replace(objectMatch.group(), str(intSizes[intArg]))
 
-	while True:
-		objectMatch = re.search('(VALUE_)([0-4])(\()([^\)]+)(\))', strKernel)
+    while True:
+        objectMatch = re.search("(VALUE_)([0-4])(\()([^\)]+)(\))", strKernel)
 
-		if objectMatch is None:
-			break
-		# end
+        if objectMatch is None:
+            break
 
-		intArgs = int(objectMatch.group(2))
-		strArgs = objectMatch.group(4).split(',')
+        intArgs = int(objectMatch.group(2))
+        strArgs = objectMatch.group(4).split(",")
 
-		strTensor = strArgs[0]
-		intStrides = objectVariables[strTensor].stride()
-		strIndex = [ '((' + strArgs[intArg + 1].replace('{', '(').replace('}', ')').strip() + ')*' + str(intStrides[intArg]) + ')' for intArg in range(intArgs) ]
+        strTensor = strArgs[0]
+        intStrides = objectVariables[strTensor].stride()
+        strIndex = [
+            "(("
+            + strArgs[intArg + 1].replace("{", "(").replace("}", ")").strip()
+            + ")*"
+            + str(intStrides[intArg])
+            + ")"
+            for intArg in range(intArgs)
+        ]
 
-		strKernel = strKernel.replace(objectMatch.group(0), strTensor + '[' + str.join('+', strIndex) + ']')
-	# end
+        strKernel = strKernel.replace(objectMatch.group(0), strTensor + "[" + str.join("+", strIndex) + "]")
+    return strKernel
 
-	return strKernel
-# end
 
 @cupy.memoize(for_each_device=True)
 def cupy_launch(strFunction, strKernel):
-	return cupy.cuda.compile_with_cache(strKernel).get_function(strFunction)
-# end
+    return cupy.cuda.compile_with_cache(strKernel).get_function(strFunction)
+
 
 class FunctionCorrelation(torch.autograd.Function):
-	def __init__(self):
-		super(FunctionCorrelation, self).__init__()
-	# end
+    def __init__(self):
+        super(FunctionCorrelation, self).__init__()
 
-	@staticmethod
-	def forward(self, first, second):
-		self.save_for_backward(first, second)
+    @staticmethod
+    def forward(self, first, second):
+        self.save_for_backward(first, second)
 
-		assert(first.is_contiguous() == True)
-		assert(second.is_contiguous() == True)
+        assert first.is_contiguous() == True
+        assert second.is_contiguous() == True
 
-		self.rbot0 = first.new(first.size(0), first.size(2) + 8, first.size(3) + 8, first.size(1)).zero_()
-		self.rbot1 = first.new(first.size(0), first.size(2) + 8, first.size(3) + 8, first.size(1)).zero_()
+        self.rbot0 = first.new(first.size(0), first.size(2) + 8, first.size(3) + 8, first.size(1)).zero_()
+        self.rbot1 = first.new(first.size(0), first.size(2) + 8, first.size(3) + 8, first.size(1)).zero_()
 
-		output = first.new(first.size(0), 81, first.size(2), first.size(3)).zero_()
+        output = first.new(first.size(0), 81, first.size(2), first.size(3)).zero_()
 
-		if first.is_cuda == True:
-			class Stream:
-				ptr = torch.cuda.current_stream().cuda_stream
-			# end
+        if first.is_cuda == True:
 
-			n = first.size(2) * first.size(3)
-			cupy_launch('kernel_Correlation_rearrange', cupy_kernel('kernel_Correlation_rearrange', {
-				'input': first,
-				'output': self.rbot0
-			}))(
-				grid=tuple([ int((n + 16 - 1) / 16), first.size(1), first.size(0) ]),
-				block=tuple([ 16, 1, 1 ]),
-				args=[ n, first.data_ptr(), self.rbot0.data_ptr() ],
-				stream=Stream
-			)
+            class Stream:
+                ptr = torch.cuda.current_stream().cuda_stream
 
-			n = second.size(2) * second.size(3)
-			cupy_launch('kernel_Correlation_rearrange', cupy_kernel('kernel_Correlation_rearrange', {
-				'input': second,
-				'output': self.rbot1
-			}))(
-				grid=tuple([ int((n + 16 - 1) / 16), second.size(1), second.size(0) ]),
-				block=tuple([ 16, 1, 1 ]),
-				args=[ n, second.data_ptr(), self.rbot1.data_ptr() ],
-				stream=Stream
-			)
+            n = first.size(2) * first.size(3)
+            cupy_launch(
+                "kernel_Correlation_rearrange",
+                cupy_kernel("kernel_Correlation_rearrange", {"input": first, "output": self.rbot0}),
+            )(
+                grid=tuple([int((n + 16 - 1) / 16), first.size(1), first.size(0)]),
+                block=tuple([16, 1, 1]),
+                args=[n, first.data_ptr(), self.rbot0.data_ptr()],
+                stream=Stream,
+            )
 
-			n = output.size(1) * output.size(2) * output.size(3)
-			cupy_launch('kernel_Correlation_updateOutput', cupy_kernel('kernel_Correlation_updateOutput', {
-				'rbot0': self.rbot0,
-				'rbot1': self.rbot1,
-				'top': output
-			}))(
-				grid=tuple([ first.size(3), first.size(2), first.size(0) ]),
-				block=tuple([ 32, 1, 1 ]),
-				shared_mem=first.size(1) * 4,
-				args=[ n, self.rbot0.data_ptr(), self.rbot1.data_ptr(), output.data_ptr() ],
-				stream=Stream
-			)
+            n = second.size(2) * second.size(3)
+            cupy_launch(
+                "kernel_Correlation_rearrange",
+                cupy_kernel("kernel_Correlation_rearrange", {"input": second, "output": self.rbot1}),
+            )(
+                grid=tuple([int((n + 16 - 1) / 16), second.size(1), second.size(0)]),
+                block=tuple([16, 1, 1]),
+                args=[n, second.data_ptr(), self.rbot1.data_ptr()],
+                stream=Stream,
+            )
 
-		elif first.is_cuda == False:
-			raise NotImplementedError()
+            n = output.size(1) * output.size(2) * output.size(3)
+            cupy_launch(
+                "kernel_Correlation_updateOutput",
+                cupy_kernel(
+                    "kernel_Correlation_updateOutput", {"rbot0": self.rbot0, "rbot1": self.rbot1, "top": output}
+                ),
+            )(
+                grid=tuple([first.size(3), first.size(2), first.size(0)]),
+                block=tuple([32, 1, 1]),
+                shared_mem=first.size(1) * 4,
+                args=[n, self.rbot0.data_ptr(), self.rbot1.data_ptr(), output.data_ptr()],
+                stream=Stream,
+            )
 
-		# end
+        elif first.is_cuda == False:
+            raise NotImplementedError()
 
-		return output
-	# end
+        return output
 
-	@staticmethod
-	def backward(self, gradOutput):
-		first, second = self.saved_tensors
+    @staticmethod
+    def backward(self, gradOutput):
+        pdb.set_trace()
 
-		assert(gradOutput.is_contiguous() == True)
+        first, second = self.saved_tensors
 
-		gradFirst = first.new(first.size()).zero_() if self.needs_input_grad[0] == True else None
-		gradSecond = first.new(first.size()).zero_() if self.needs_input_grad[1] == True else None
+        assert gradOutput.is_contiguous() == True
 
-		if first.is_cuda == True:
-			raise NotImplementedError()
+        gradFirst = first.new(first.size()).zero_() if self.needs_input_grad[0] == True else None
+        gradSecond = first.new(first.size()).zero_() if self.needs_input_grad[1] == True else None
 
-		elif first.is_cuda == False:
-			raise NotImplementedError()
+        if first.is_cuda == True:
+            raise NotImplementedError()
 
-		# end
+        elif first.is_cuda == False:
+            raise NotImplementedError()
 
-		return gradFirst, gradSecond
-	# end
-# end
+        return gradFirst, gradSecond
+
 
 class ModuleCorrelation(torch.nn.Module):
-	def __init__(self):
-		super(ModuleCorrelation, self).__init__()
-	# end
+    def __init__(self):
+        super(ModuleCorrelation, self).__init__()
 
-	def forward(self, tensorFirst, tensorSecond):
-		# return FunctionCorrelation()(tensorFirst, tensorSecond)
-		tensorFirst = tensorFirst.contiguous()
-		tensorSecond = tensorSecond.contiguous()
-		return FunctionCorrelation.apply(tensorFirst, tensorSecond)
-
-	# end
-# end
+    def forward(self, tensorFirst, tensorSecond):
+        # return FunctionCorrelation()(tensorFirst, tensorSecond)
+        tensorFirst = tensorFirst.contiguous()
+        tensorSecond = tensorSecond.contiguous()
+        return FunctionCorrelation.apply(tensorFirst, tensorSecond)
