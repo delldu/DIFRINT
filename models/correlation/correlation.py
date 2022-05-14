@@ -137,7 +137,7 @@ def cupy_kernel(strFunction, objectVariables):
 	return strKernel
 # end
 
-@cupy.util.memoize(for_each_device=True)
+@cupy.memoize(for_each_device=True)
 def cupy_launch(strFunction, strKernel):
 	return cupy.cuda.compile_with_cache(strKernel).get_function(strFunction)
 # end
@@ -147,6 +147,7 @@ class FunctionCorrelation(torch.autograd.Function):
 		super(FunctionCorrelation, self).__init__()
 	# end
 
+	@staticmethod
 	def forward(self, first, second):
 		self.save_for_backward(first, second)
 
@@ -206,6 +207,7 @@ class FunctionCorrelation(torch.autograd.Function):
 		return output
 	# end
 
+	@staticmethod
 	def backward(self, gradOutput):
 		first, second = self.saved_tensors
 
@@ -232,6 +234,10 @@ class ModuleCorrelation(torch.nn.Module):
 	# end
 
 	def forward(self, tensorFirst, tensorSecond):
-		return FunctionCorrelation()(tensorFirst, tensorSecond)
+		# return FunctionCorrelation()(tensorFirst, tensorSecond)
+		tensorFirst = tensorFirst.contiguous()
+		tensorSecond = tensorSecond.contiguous()
+		return FunctionCorrelation.apply(tensorFirst, tensorSecond)
+
 	# end
 # end

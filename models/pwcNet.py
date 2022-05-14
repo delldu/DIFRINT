@@ -21,7 +21,7 @@ except:
 
 ##########################################################
 
-assert(int(torch.__version__.replace('.', '')) >= 40) # requires at least pytorch version 0.4.0
+# assert(int(torch.__version__.replace('.', '')) >= 40) # requires at least pytorch version 0.4.0
 
 #torch.set_grad_enabled(True) # make sure to not compute gradients for computational performance
 

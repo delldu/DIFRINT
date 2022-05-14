@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.nn.init as init
 
 from models.pwcNet import PwcNet
-from models.gridNet import IncepGridNet
+# from models.gridNet import IncepGridNet
 
 import math
 import pdb
